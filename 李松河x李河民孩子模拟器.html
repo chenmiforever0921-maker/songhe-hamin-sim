@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>松河 × 河民 孩子模拟器</title>
+<meta name="theme-color" content="#0f0f25" />
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #08081a;
+    font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    color: #e8e8f0;
+    overscroll-behavior-y: none;
+  }
+  button { font-family: inherit; -webkit-appearance: none; }
+  #root { min-height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState } = React;
+
+// ────────────────────────────────────────────────
+// 场景数据
+// ────────────────────────────────────────────────
+const SCENARIOS = [
+  {
+    id: "morning",
+    title: "六点半了",
+    icon: "🌅",
+    age: "all",
+    desc: "松河爸爸走进你房间，语气平静地说：「学校打电话来说今天放假，不用去了。」你一个激灵坐起来……",
+    choices: [
+      { text: "弹起来！真的吗！", effect: { qv: -1, sm: 2 }, icon: "😲",
+        result: "松河爸爸看了你一眼：「六点半，去洗脸。」厨房传来河民爸爸压抑的笑声——「哥你太坏了」。" },
+      { text: "识破了，翻身不理他", effect: { qv: 1, sm: -1 }, icon: "😒",
+        result: "沉默两秒。被子被直接掀开。「行，换个方法。」他站在那里等你，偶像包袱维持得很好。" },
+      { text: "喊河民爸爸来救我", effect: { hm: 3, sm: -2, liang: -1 }, icon: "😭",
+        result: "河民爸爸：「松河，你又骗孩子了？」松河爸爸：「我没骗，六点半是真的。」两爸开始扯，你悄悄缩回被子。" },
+      { text: "坐起来揉眼睛不说话", effect: { qv: 2, sm: 1 }, icon: "😪",
+        result: "他给你倒了杯水放在床头柜上，没说话就走了。河民爸爸的早餐做好了，今天有你说过想吃的葱饼。" },
+    ]
+  },
+  {
+    id: "food",
+    title: "河民爸爸做了好吃的",
+    icon: "🍳",
+    age: "all",
+    desc: "你昨天随口说了一句「有点想吃葱饼」，今天早上厨房飘来香味。河民爸爸认真地问：好不好吃？",
+    choices: [
+      { text: "大力夸！太好吃了！", effect: { hm: 3, liang: 1 }, icon: "🤩",
+        result: "河民爸爸高兴地又去厨房，松河爸爸从旁边探过来：「我也会做。」河民爸爸：「哥你上次把锅烧了。」" },
+      { text: "问能不能再来一份", effect: { hm: 4, qv: -1 }, icon: "🍽️",
+        result: "河民爸爸立刻去做。松河爸爸：「吃那么多。」但没有阻止。他自己也拿了一个。" },
+      { text: "问松河爸爸为什么不做饭", effect: { sm: -2, hm: 2, liang: 2 }, icon: "🤔",
+        result: "松河爸爸：「我……负责其他事。」河民爸爸忍笑失败，趁他没看见对你眨了眨眼。" },
+      { text: "说不饿，不想吃", effect: { hm: -1, sm: 2 }, icon: "😶",
+        result: "河民爸爸：没吃坏肚子？松河爸爸从旁边看了你一眼。此后一小时他偶尔问一句「头疼不」，装作顺口提起。" },
+    ]
+  },
+  {
+    id: "exam",
+    title: "考砸了，卷子要签字",
+    icon: "📝",
+    age: "all",
+    desc: "64分。卷子在书包里。松河爸爸其实已经接到老师电话了，他在等你开口。",
+    choices: [
+      { text: "给松河爸爸签", effect: { sm: 3, qv: 2 }, icon: "😐",
+        result: "他扫完一遍，沉默，「哪里没懂？」不是责骂，是真的要搞清楚。签完顺手在手机里查了补习班信息。" },
+      { text: "给河民爸爸签", effect: { hm: 3, secret: 1 }, icon: "😮‍💨",
+        result: "他先叹气说「没事」，问你这次怎么了，听完说「那这块我们一起看看」。当晚偷偷告诉了松河爸爸。" },
+      { text: "两个都交", effect: { sm: 2, hm: 2, liang: 2 }, icon: "🫡",
+        result: "罕见的联合坐下。不是审讯，更像两人各自在想怎么帮你。气氛意外没那么可怕。" },
+      { text: "继续藏着", effect: { secret: 3, qv: -3 }, icon: "🫠",
+        result: "秘密槽+3。松河爸爸今晚吃饭时看了你一眼，没问。他在等你。" },
+    ]
+  },
+  {
+    id: "trouble",
+    title: "上课调皮，老师叫家长",
+    icon: "🏫",
+    age: "all",
+    desc: "班主任让联系家长。你盯着手机，松河爸爸和河民爸爸的名字在屏幕上等着你选。",
+    choices: [
+      { text: "叫松河爸爸", effect: { sm: 2, qv: 1 }, icon: "🫡",
+        result: "他来，认真道歉。回家让你把经过说清楚，然后五分钟谈话，谈完结束，不再翻。第二天他还是在帮你看作业。" },
+      { text: "叫河民爸爸", effect: { hm: 3, sm: -1 }, icon: "🥺",
+        result: "他先问老师你有没有受委屈。回家先问你，再说道理。但他当晚跟松河爸爸讲了，松河爸爸第二天问了你一句。" },
+      { text: "两个都叫", effect: { sm: 1, hm: 1, liang: -2 }, icon: "😱",
+        result: "两爸一起来了。老师说话时两人都在点头，河民爸爸手悄悄摸了你的头，松河爸爸看见了，没说话。" },
+      { text: "不叫任何人", effect: { secret: 2, qv: -4 }, icon: "🤦",
+        result: "老师后来直接打了河民爸爸的电话。因为他接电话更快。秘密槽+2。" },
+    ]
+  },
+  {
+    id: "sports",
+    title: "亲子运动会来了",
+    icon: "🏃",
+    age: "all",
+    desc: "亲子接力跑，两爸同时举手。他们对视。松河爸爸说：猜拳。河民爸爸比松河爸爸腿长。",
+    choices: [
+      { text: "帮河民爸爸说话：「他腿长」", effect: { hm: 4, sm: -1 }, icon: "🏆",
+        result: "松河爸爸猜拳赢了，然后让河民爸爸跑，「你腿长，快一点」。全程他拍照，一张没糊。" },
+      { text: "帮松河爸爸说话：「哥更帅」", effect: { sm: 4, hm: -1 }, icon: "💪",
+        result: "河民爸爸假装受伤：你偏心。但他笑了。松河爸爸很认真地跑，河民爸爸在家长席比你还紧张。" },
+      { text: "说让他们自己决定", effect: { liang: 3 }, icon: "✌️",
+        result: "两爸猜拳，松河爸爸赢了，让河民跑。但事后松河爸爸说下次他来——他在记着这件事。" },
+      { text: "你跑那段跌倒了", effect: { sm: 3, hm: 5, liang: 2 }, icon: "🩹",
+        result: "河民爸爸第一个冲出来，松河爸爸落后三步但也走过来。两人一起蹲下，一个看你的手，一个看你的腿。就擦破了一点皮，但今天很暖。" },
+    ]
+  },
+  {
+    id: "argue",
+    title: "两爸今天气氛不对",
+    icon: "⚡",
+    age: "all",
+    desc: "你回家时感觉到了。厨房是安静的，但那种安静不对。",
+    choices: [
+      { text: "躲进房间", effect: { secret: 1, liang: -2 }, icon: "🙈",
+        result: "河民爸爸第一个来找你道歉——「吵到你了，不好意思。」松河爸爸没来，但你晚上看见他坐在沙发上发呆。" },
+      { text: "出去说「你们别吵了」", effect: { liang: 6, qv: 3 }, icon: "🕊️",
+        result: "两爸同时停了。河民爸爸先笑了，松河爸爸清了清嗓子。今天家里气氛反而比昨天好，河民爸爸做了顿好的。" },
+      { text: "站到河民爸爸那边", effect: { hm: 4, sm: -7, liang: -6 }, icon: "⚖️",
+        result: "松河爸爸看了你一眼没再说话，去书房了。河民爸爸悄悄来说：「你爸不是真的生气，他就那样。」" },
+      { text: "假装什么都没发生，正常吃饭", effect: { qv: 1, liang: 1 }, icon: "😶",
+        result: "两爸看了你一眼，也配合你假装正常。河民爸爸又多夹了你两筷子菜，松河爸爸低头喝汤，今晚他们各自放下了。" },
+    ]
+  },
+  {
+    id: "earlylove",
+    title: "早恋被发现了",
+    icon: "💘",
+    age: "middle",
+    desc: "河民爸爸在你书包里发现了一张纸条。你回家时，两爸坐在客厅，面朝你。",
+    choices: [
+      { text: "主动说清楚，对方是谁", effect: { sm: 4, hm: 3, qv: 5 }, icon: "🗣️",
+        result: "松河爸爸（意外理性）：对方是什么样的人？然后说：先把学习搞好。河民爸爸当晚来问有没有受委屈，还给你做了最爱吃的。" },
+      { text: "否认，说是同学的纸条", effect: { secret: 2, qv: -5 }, icon: "🙅",
+        result: "他们信了一半。河民爸爸当天查了你手机。松河爸爸什么都没说，但帮你多留了一盏灯。" },
+      { text: "反问：「你们当年也早恋吧？」", effect: { liang: 5, qv: -1 }, icon: "😏",
+        result: "两爸短暂对视。河民爸爸笑了，松河爸爸没笑但也没绷住。今天以全家出去吃了顿好的收尾。成就解锁可能！" },
+      { text: "沉默，等他们问", effect: { sm: -1, hm: -1 }, icon: "😶",
+        result: "沉默有时候比承认还难熬。松河爸爸先开口——语气出乎意料平静。河民爸爸反而是最紧张的那个。" },
+    ]
+  },
+  {
+    id: "thunder",
+    title: "半夜打雷，你很怕",
+    icon: "⛈️",
+    age: "young",
+    desc: "你五岁，半夜打雷，悄悄跑去爸爸们的房间。门缝有光——他们还没睡。",
+    choices: [
+      { text: "扑向松河爸爸", effect: { sm: 5 }, icon: "🌙",
+        result: "他放下手机，带你回房间，讲了个非常无聊但你第三分钟就睡了的故事。走时他把门留了条缝。" },
+      { text: "扑向河民爸爸", effect: { hm: 5 }, icon: "🛌",
+        result: "他正在看你小时候的照片。立刻抱起你，「今晚睡这里」，给你找了只玉桂狗玩偶。" },
+      { text: "站在门口等他们发现你", effect: { sm: 3, hm: 3, liang: 2 }, icon: "🥹",
+        result: "河民爸爸先看见你，松河爸爸比他快一步把灯开亮了。今晚三个人都没睡好，但谁都没说。" },
+      { text: "大声哭", effect: { hm: 4, sm: 2, liang: 3 }, icon: "😭",
+        result: "两爸都醒了。松河爸爸要赶你回房间，河民爸爸死活要留你睡中间。河民爸爸一边哄你一边哄松河爸爸，你最先睡着。" },
+    ]
+  },
+  {
+    id: "birthday",
+    title: "今天是我生日",
+    icon: "🎂",
+    age: "all",
+    desc: "你一早醒来，房间里有彩带——挂歪了，但很认真。厨房飘来蛋糕的香气。",
+    choices: [
+      { text: "去谢谢河民爸爸", effect: { hm: 5, liang: 2 }, icon: "🎈",
+        result: "他蹲下来问：「好看不？」非常不好看。你说了好看。他开心地又去厨房，松河爸爸从旁边说：「我也参与了彩带。」那一根是歪的。" },
+      { text: "去谢谢松河爸爸", effect: { sm: 5, liang: 2 }, icon: "📋",
+        result: "「是河民弄的，别谢我。」但你注意到他手机备忘录里有条两周前的记录：礼物清单。" },
+      { text: "偷偷看两爸说悄悄话", effect: { liang: 8, secret: -1 }, icon: "💍",
+        result: "触发【戒指见证】：河民爸爸掏出一枚戒指，「当年我们太年轻，爱的太快……现在想再还你一枚。」你悄悄溜走，永远记得这个画面。" },
+      { text: "宣布今晚要吃夜宵", effect: { hm: 5, sm: -1, liang: 1 }, icon: "🍜",
+        result: "河民爸爸：走走走！松河爸爸：……行吧。今天是他今年第三次破例。河民爸爸悄悄给你比了个v。" },
+    ]
+  },
+];
+
+const STAT_CFG = {
+  qv:     { label: "乖巧值",       max: 50, color: "#6ee7b7", icon: "😇" },
+  sm:     { label: "松河爸爸亲密", max: 50, color: "#93c5fd", icon: "🧊" },
+  hm:     { label: "河民爸爸亲密", max: 50, color: "#fca5a5", icon: "🔥" },
+  liang:  { label: "两爸关系值",   max: 50, color: "#c4b5fd", icon: "💞" },
+  secret: { label: "秘密槽",       max: 10, color: "#fde68a", icon: "🤫", reverse: true },
+};
+
+const AGE_MAP = { young: "👶 幼年期（3-6岁）", middle: "🏫 少年期（13-15岁）", all: "全年龄" };
+
+function StatBar({ id, value }) {
+  const cfg = STAT_CFG[id];
+  const pct = Math.min(100, (value / cfg.max) * 100);
+  return (
+    <div style={{ marginBottom: 9 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#9ca3af", marginBottom: 3 }}>
+        <span>{cfg.icon} {cfg.label}</span>
+        <span style={{ color: "#d1d5db" }}>{id === "secret" ? `${value}/10格` : value}</span>
+      </div>
+      <div style={{ background: "rgba(255,255,255,0.07)", borderRadius: 6, height: 7 }}>
+        <div style={{
+          width: `${pct}%`, height: "100%",
+          background: id === "secret" && value >= 5 ? "#ef4444" : cfg.color,
+          borderRadius: 6, transition: "width 0.5s ease",
+          boxShadow: `0 0 6px ${cfg.color}66`,
+        }} />
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [stats, setStats] = useState({ qv: 20, sm: 20, hm: 20, liang: 25, secret: 0 });
+  const [scene, setScene] = useState(null);
+  const [phase, setPhase] = useState("home");
+  const [result, setResult] = useState(null);
+  const [chosenText, setChosenText] = useState("");
+  const [chosenIcon, setChosenIcon] = useState("");
+  const [chosenEffect, setChosenEffect] = useState({});
+  const [history, setHistory] = useState([]);
+  const [achv, setAchv] = useState(new Set());
+
+  const applyEffect = (effect, choiceText, prevStats) => {
+    const next = { ...prevStats };
+    Object.entries(effect).forEach(([k, v]) => {
+      next[k] = Math.max(0, Math.min(k === "secret" ? 10 : 50, (next[k] || 0) + v));
+    });
+    const newAchv = new Set(achv);
+    if (next.sm >= 45) newAchv.add("松河爸爸笑了");
+    if (next.hm >= 45) newAchv.add("河民爸爸哭了");
+    if (next.liang >= 45) newAchv.add("完美配合");
+    if (next.secret === 0 && prevStats.secret > 0) newAchv.add("秘密全清");
+    if (choiceText === "偷偷看两爸说悄悄话") newAchv.add("戒指见证");
+    if (choiceText === "出去说「你们别吵了」") newAchv.add("小大人");
+    if (next.sm > 30 && next.hm > 30) newAchv.add("两个爸爸");
+    setAchv(newAchv);
+    setStats(next);
+  };
+
+  const pickRandom = () => {
+    const idx = Math.floor(Math.random() * SCENARIOS.length);
+    setScene(SCENARIOS[idx]);
+    setResult(null); setPhase("scene");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const pickById = (id) => {
+    setScene(SCENARIOS.find(s => s.id === id));
+    setResult(null); setPhase("scene");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const choose = (choice) => {
+    const prev = { ...stats };
+    applyEffect(choice.effect, choice.text, prev);
+    setResult(choice.result);
+    setChosenText(choice.text);
+    setChosenIcon(choice.icon);
+    setChosenEffect(choice.effect);
+    setHistory(h => [...h, { scene: scene.title, choice: choice.text, icon: choice.icon }].slice(-8));
+    setPhase("result");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const secretDanger = stats.secret >= 5;
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "linear-gradient(160deg, #080814 0%, #0f0f25 50%, #08081a 100%)",
+      color: "#e8e8f0",
+    }}>
+      <div style={{
+        borderBottom: "1px solid rgba(148,163,184,0.1)",
+        padding: "18px 20px 14px",
+        textAlign: "center",
+        background: "linear-gradient(180deg, rgba(99,102,241,0.12) 0%, transparent 100%)",
+      }}>
+        <div style={{ fontSize: 11, color: "#6366f1", letterSpacing: 4, marginBottom: 5, textTransform: "uppercase" }}>
+          SMTR25 · 帝后向同人 · 虚构创作
+        </div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: "#e0e7ff", letterSpacing: 1 }}>松河爸爸 × 河民爸爸</div>
+        <div style={{ fontSize: 12, color: "#818cf8", marginTop: 3 }}>孩子模拟器 v2</div>
+      </div>
+
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "0 16px 48px" }}>
+        <div style={{
+          background: "rgba(255,255,255,0.035)",
+          border: "1px solid rgba(255,255,255,0.07)",
+          borderRadius: 16, padding: "14px 16px", marginTop: 16,
+        }}>
+          {Object.keys(stats).map(k => <StatBar key={k} id={k} value={stats[k]} />)}
+          {secretDanger && (
+            <div style={{ marginTop: 10, padding: "7px 12px",
+              background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)",
+              borderRadius: 8, fontSize: 12, color: "#fca5a5", textAlign: "center" }}>
+              ⚠️ 秘密积累太多了，随时会爆…
+            </div>
+          )}
+        </div>
+
+        {achv.size > 0 && (
+          <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {[...achv].map(a => (
+              <span key={a} style={{
+                padding: "3px 10px",
+                background: "rgba(167,139,250,0.12)", border: "1px solid rgba(167,139,250,0.25)",
+                borderRadius: 20, fontSize: 11, color: "#c4b5fd",
+              }}>🏅 {a}</span>
+            ))}
+          </div>
+        )}
+
+        {phase === "home" && (
+          <div style={{ marginTop: 20 }}>
+            <div style={{
+              padding: "24px 18px", borderRadius: 18,
+              background: "rgba(99,102,241,0.07)", border: "1px solid rgba(99,102,241,0.12)",
+              textAlign: "center", marginBottom: 16,
+            }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>🏠</div>
+              <div style={{ fontSize: 14, color: "#c7d2fe", lineHeight: 1.8 }}>
+                你是李松河和李河民的孩子。<br/>
+                <span style={{ color: "#818cf8", fontSize: 12 }}>
+                  松河爸爸有偶像包袱，河民爸爸会做饭——<br/>今天又会发生什么？
+                </span>
+              </div>
+            </div>
+
+            <button onClick={pickRandom} style={{
+              width: "100%", padding: "15px",
+              background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
+              border: "none", borderRadius: 14, color: "#fff",
+              fontSize: 15, fontWeight: 700, cursor: "pointer",
+              boxShadow: "0 4px 20px rgba(99,102,241,0.35)", marginBottom: 14,
+            }}>随机今日事件 🎲</button>
+
+            <div style={{ fontSize: 11, color: "#6b7280", textAlign: "center", marginBottom: 10, letterSpacing: 1 }}>
+              — 或选择特定场景 —
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {SCENARIOS.map(s => (
+                <button key={s.id} onClick={() => pickById(s.id)} style={{
+                  padding: "10px 10px 10px 12px",
+                  background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)",
+                  borderRadius: 10, color: "#c7d2fe", fontSize: 12, cursor: "pointer",
+                  textAlign: "left", lineHeight: 1.4,
+                }}>
+                  <span style={{ marginRight: 5 }}>{s.icon}</span>{s.title}
+                  {s.age !== "all" && <span style={{ display: "block", fontSize: 10, color: "#6366f1", marginTop: 2 }}>{AGE_MAP[s.age]}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {phase === "scene" && scene && (
+          <div style={{ marginTop: 20 }}>
+            {scene.age !== "all" && (
+              <div style={{ textAlign: "center", marginBottom: 10, fontSize: 12, color: "#6366f1" }}>
+                {AGE_MAP[scene.age]}
+              </div>
+            )}
+            <div style={{
+              padding: "22px 18px", borderRadius: 18,
+              background: "rgba(99,102,241,0.07)", border: "1px solid rgba(99,102,241,0.12)",
+              textAlign: "center", marginBottom: 14,
+            }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>{scene.icon}</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#e0e7ff", marginBottom: 10 }}>{scene.title}</div>
+              <div style={{ fontSize: 13, color: "#a5b4fc", lineHeight: 1.8 }}>{scene.desc}</div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              {scene.choices.map((c, i) => (
+                <button key={i} onClick={() => choose(c)} style={{
+                  padding: "13px 16px",
+                  background: "rgba(255,255,255,0.035)", border: "1px solid rgba(99,102,241,0.18)",
+                  borderRadius: 12, color: "#e0e7ff", fontSize: 13, cursor: "pointer",
+                  textAlign: "left", display: "flex", alignItems: "center", gap: 10,
+                }}>
+                  <span style={{ fontSize: 18, flexShrink: 0 }}>{c.icon}</span>
+                  <span>{c.text}</span>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setPhase("home")} style={{
+              marginTop: 12, width: "100%", padding: "9px",
+              background: "transparent", border: "1px solid rgba(255,255,255,0.06)",
+              borderRadius: 10, color: "#6b7280", fontSize: 12, cursor: "pointer",
+            }}>← 返回主页</button>
+          </div>
+        )}
+
+        {phase === "result" && (
+          <div style={{ marginTop: 20 }}>
+            <div style={{
+              padding: "22px 18px", borderRadius: 18,
+              background: "rgba(99,102,241,0.09)", border: "1px solid rgba(99,102,241,0.18)",
+              marginBottom: 14,
+            }}>
+              <div style={{ fontSize: 30, textAlign: "center", marginBottom: 10 }}>{chosenIcon}</div>
+              <div style={{ fontSize: 12, color: "#818cf8", textAlign: "center", marginBottom: 10 }}>
+                你选择了：{chosenText}
+              </div>
+              <div style={{
+                fontSize: 14, color: "#c7d2fe", lineHeight: 1.85, textAlign: "center",
+                padding: "12px", background: "rgba(255,255,255,0.04)", borderRadius: 10,
+              }}>{result}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12, justifyContent: "center" }}>
+                {Object.entries(chosenEffect).map(([k, v]) => (
+                  <span key={k} style={{
+                    padding: "3px 9px",
+                    background: v > 0 ? "rgba(110,231,183,0.1)" : "rgba(252,165,165,0.1)",
+                    border: `1px solid ${v > 0 ? "rgba(110,231,183,0.3)" : "rgba(252,165,165,0.3)"}`,
+                    borderRadius: 20, fontSize: 11,
+                    color: v > 0 ? "#6ee7b7" : "#fca5a5",
+                  }}>
+                    {STAT_CFG[k]?.icon} {STAT_CFG[k]?.label} {v > 0 ? "+" : ""}{v}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 9 }}>
+              <button onClick={pickRandom} style={{
+                flex: 1, padding: "13px",
+                background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
+                border: "none", borderRadius: 12, color: "#fff",
+                fontSize: 14, fontWeight: 700, cursor: "pointer",
+              }}>继续今天 🎲</button>
+              <button onClick={() => setPhase("home")} style={{
+                padding: "13px 14px",
+                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)",
+                borderRadius: 12, color: "#9ca3af", fontSize: 13, cursor: "pointer",
+              }}>主页</button>
+            </div>
+          </div>
+        )}
+
+        {history.length > 0 && (
+          <div style={{ marginTop: 22 }}>
+            <div style={{ fontSize: 11, color: "#4b5563", marginBottom: 8, letterSpacing: 2 }}>今日足迹</div>
+            {[...history].reverse().map((h, i) => (
+              <div key={i} style={{
+                padding: "7px 11px", background: "rgba(255,255,255,0.025)", borderRadius: 8,
+                fontSize: 12, color: "#6b7280", display: "flex", alignItems: "center", gap: 7,
+                marginBottom: 5,
+              }}>
+                <span>{h.icon}</span>
+                <span style={{ color: "#6366f1" }}>{h.scene}</span>
+                <span>→</span>
+                <span style={{ color: "#9ca3af" }}>{h.choice}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ marginTop: 32, textAlign: "center", fontSize: 10, color: "#1f2937", lineHeight: 2 }}>
+          ※ 虚构同人向创作 · 内容不代表真实艺人 ※
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
